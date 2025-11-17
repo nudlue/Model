@@ -1,18 +1,19 @@
 const URL = "model/"; 
 
-let model, audio, maxPredictions;
+let model, maxPredictions;
 
 async function loadModel() {
-    // Teachable Machine Audio Library Load
+    // Load the Teachable Machine audio model
     model = await tmAudio.load(URL + "model.json", URL + "metadata.json");
     maxPredictions = model.getTotalClasses();
 
+    // Disable button after starting
     document.getElementById("start-btn").disabled = true;
 
-    // Start Listening
+    // Start listening to microphone
     model.listen(resultHandler, {
-        overlapFactor: 0.5,
-        probabilityThreshold: 0.0
+        overlapFactor: 0.5,            // how much segments overlap
+        probabilityThreshold: 0.0      // show all predictions
     });
 
     console.log("Listening started");
@@ -23,7 +24,8 @@ function emojiForClass(c) {
         case "Doorbell": return "🚪🔔";
         case "Fire Alarm": return "🔥🚨";
         case "Baby Crying": return "👶😭";
-        default: return "🔉";
+        case "Background": return "🔉";
+        default: return "🎧";
     }
 }
 
@@ -48,6 +50,7 @@ function resultHandler(predictions) {
         }
     });
 
+    // Set emoji
     document.getElementById("emoji").textContent = emojiForClass(maxClass);
 }
 
