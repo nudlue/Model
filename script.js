@@ -1,79 +1,54 @@
-let model, audio;
-let isListening = false;
+const URL = "model/"; 
 
-const classes = ["Doorbell", "Fire Alarm", "Baby Crying", "Background Noise"];
-
-function emojiForClass(c) {
-  switch (c) {
-    case "Doorbell": return "🚪🔔";
-    case "Fire Alarm": return "🔥🚨";
-    case "Baby Crying": return "👶😭";
-    default: return "🔉";
-  }
-}
+let model, audio, maxPredictions;
 
 async function loadModel() {
-  model = await tf.loadLayersModel("model/model.json");
-  console.log("Model loaded");
+    // Teachable Machine Audio Library Load
+    model = await tmAudio.load(URL + "model.json", URL + "metadata.json");
+    maxPredictions = model.getTotalClasses();
+
+    document.getElementById("start-btn").disabled = true;
+
+    // Start Listening
+    model.listen(resultHandler, {
+        overlapFactor: 0.5,
+        probabilityThreshold: 0.0
+    });
+
+    console.log("Listening started");
 }
 
-async function startListening() {
-  isListening = true;
-
-  audio = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const audioContext = new AudioContext();
-  const streamSource = audioContext.createMediaStreamSource(audio);
-
-  const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 2048;
-
-  streamSource.connect(analyser);
-  const data = new Float32Array(analyser.fftSize);
-
-  async function loop() {
-    if (!isListening) return;
-
-    analyser.getFloatTimeDomainData(data);
-
-    // 1초마다 예측하도록 setTimeout
-    const input = tf.tensor(data).reshape([1, data.length, 1]);
-
-    const prediction = model.predict(input);
-    const probs = await prediction.data();
-
-    updateDisplay(probs);
-
-    prediction.dispose();
-    input.dispose();
-
-    setTimeout(loop, 1000);
-  }
-
-  loop();
+function emojiForClass(c) {
+    switch (c) {
+        case "Doorbell": return "🚪🔔";
+        case "Fire Alarm": return "🔥🚨";
+        case "Baby Crying": return "👶😭";
+        default: return "🔉";
+    }
 }
 
-function updateDisplay(probabilities) {
-  // 확률이 가장 높은 클래스 선택
-  let maxIndex = probabilities.indexOf(Math.max(...probabilities));
-  let predictedClass = classes[maxIndex];
+function resultHandler(predictions) {
+    let tbody = document.getElementById("prob-body");
+    tbody.innerHTML = "";
 
-  // 이모지 표시
-  document.getElementById("emoji").textContent = emojiForClass(predictedClass);
+    let maxClass = "";
+    let maxProb = -1;
 
-  // 테이블 업데이트
-  let tbody = document.getElementById("prob-body");
-  tbody.innerHTML = "";
+    predictions.forEach(p => {
+        let row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${p.className}</td>
+            <td>${(p.probability * 100).toFixed(2)}%</td>
+        `;
+        tbody.appendChild(row);
 
-  classes.forEach((c, i) => {
-    let row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${c}</td>
-      <td>${(probabilities[i] * 100).toFixed(2)}%</td>
-    `;
-    tbody.appendChild(row);
-  });
+        if (p.probability > maxProb) {
+            maxProb = p.probability;
+            maxClass = p.className;
+        }
+    });
+
+    document.getElementById("emoji").textContent = emojiForClass(maxClass);
 }
 
-document.getElementById("start-btn").addEventListener("click", () => {
-  loadModel().then(startListening);
-});
+document.getElementById("start-btn").addEventListener("click", loadModel);
